@@ -10,12 +10,17 @@ function getClient(config) {
   return client;
 }
 
-function msToHours(ms) {
-  return ms ? (ms / 3600000).toFixed(1) : '0';
+function msToH(ms) {
+  return ms ? (ms / 3600000).toFixed(1) : '';
+}
+
+function n(v, d) {
+  if (v == null) return '';
+  return d != null ? v.toFixed(d) : String(v);
 }
 
 function buildSystemPrompt(context) {
-  const { recovery7d, sleep7d, workouts7d, cycles7d, recovery30dAvg, sleep30dAvg, strain30dAvg, profile, bodyMeasurements } = context;
+  const { recovery365d, sleep365d, workouts365d, cycles365d, profile, bodyMeasurements } = context;
 
   let profileInfo = '';
   if (profile) {
@@ -25,54 +30,49 @@ function buildSystemPrompt(context) {
     profileInfo += `Height: ${bodyMeasurements.height_meter}m, Weight: ${bodyMeasurements.weight_kilogram}kg, Max HR: ${bodyMeasurements.max_heart_rate}bpm\n`;
   }
 
-  const recoveryLines = recovery7d.map(r =>
-    `  ${r.start_time?.slice(0, 10)}: Recovery ${r.recovery_score?.toFixed(0)}%, HRV ${r.hrv_rmssd_milli?.toFixed(1)}ms, RHR ${r.resting_heart_rate?.toFixed(0)}bpm`
+  // Recovery: compact CSV — date,recovery%,hrv_ms,rhr,spo2,skin_temp
+  const recoveryCSV = recovery365d.map(r =>
+    `${r.start_time?.slice(0, 10)},${n(r.recovery_score, 0)},${n(r.hrv_rmssd_milli, 1)},${n(r.resting_heart_rate, 0)},${n(r.spo2_percentage, 1)},${n(r.skin_temp_celsius, 1)}`
   ).join('\n');
 
-  const sleepLines = sleep7d.map(s =>
-    `  ${s.start_time?.slice(0, 10)}: Total ${msToHours(s.light + s.deep + s.rem)}h (Light ${msToHours(s.light)}h, Deep ${msToHours(s.deep)}h, REM ${msToHours(s.rem)}h), Performance ${s.performance?.toFixed(0)}%`
+  // Sleep: compact CSV — date,total_h,light_h,deep_h,rem_h,awake_h,perf%,eff%,resp_rate
+  const sleepCSV = sleep365d.map(s => {
+    const total = msToH((s.light || 0) + (s.deep || 0) + (s.rem || 0));
+    return `${s.start_time?.slice(0, 10)},${total},${msToH(s.light)},${msToH(s.deep)},${msToH(s.rem)},${msToH(s.awake)},${n(s.performance, 0)},${n(s.efficiency, 0)},${n(s.respiratory_rate, 1)}`;
+  }).join('\n');
+
+  // Cycles: compact CSV — date,strain,kj,avg_hr
+  const cyclesCSV = cycles365d.map(c =>
+    `${c.start_time?.slice(0, 10)},${n(c.score_strain, 1)},${n(c.score_kilojoule, 0)},${n(c.score_average_heart_rate, 0)}`
   ).join('\n');
 
-  const workoutLines = workouts7d.map(w =>
-    `  ${w.start_time?.slice(0, 10)}: ${w.sport_name} — Strain ${w.score_strain?.toFixed(1)}, Avg HR ${w.score_average_heart_rate}bpm, ${w.score_kilojoule?.toFixed(0)}kJ`
+  // Workouts: compact CSV — date,sport,strain,avg_hr,max_hr,kj,distance_m
+  const workoutsCSV = workouts365d.map(w =>
+    `${w.start_time?.slice(0, 10)},${w.sport_name || 'Unknown'},${n(w.score_strain, 1)},${n(w.score_average_heart_rate, 0)},${n(w.score_max_heart_rate, 0)},${n(w.score_kilojoule, 0)},${n(w.score_distance_meter, 0)}`
   ).join('\n');
 
-  const cycleLines = cycles7d.map(c =>
-    `  ${c.start_time?.slice(0, 10)}: Strain ${c.score_strain?.toFixed(1)}, ${c.score_kilojoule?.toFixed(0)}kJ`
-  ).join('\n');
-
-  let agg30d = '';
-  if (recovery30dAvg) {
-    agg30d += `30-day Avg Recovery: ${recovery30dAvg.avg_recovery?.toFixed(0)}% (range ${recovery30dAvg.min_recovery?.toFixed(0)}–${recovery30dAvg.max_recovery?.toFixed(0)}%)\n`;
-    agg30d += `30-day Avg HRV: ${recovery30dAvg.avg_hrv?.toFixed(1)}ms, Avg RHR: ${recovery30dAvg.avg_rhr?.toFixed(0)}bpm\n`;
-  }
-  if (sleep30dAvg) {
-    agg30d += `30-day Avg Sleep: ${msToHours(sleep30dAvg.avg_in_bed)}h, Avg Performance: ${sleep30dAvg.avg_performance?.toFixed(0)}%\n`;
-  }
-  if (strain30dAvg) {
-    agg30d += `30-day Avg Strain: ${strain30dAvg.avg_strain?.toFixed(1)}, Max Strain: ${strain30dAvg.max_strain?.toFixed(1)}\n`;
-  }
-
-  return `You are a health data analyst assistant for HealthOS. You have access to the user's WHOOP health data.
+  return `You are a health data analyst assistant for HealthOS. You have access to the user's WHOOP health data for the last year (365 days). All daily data is provided below in CSV format.
 
 ${profileInfo}
-=== Last 7 Days: Recovery ===
-${recoveryLines || '  No data'}
+=== Recovery (${recovery365d.length} days) ===
+date,recovery%,hrv_ms,rhr,spo2%,skin_temp_c
+${recoveryCSV || 'No data'}
 
-=== Last 7 Days: Sleep ===
-${sleepLines || '  No data'}
+=== Sleep (${sleep365d.length} nights) ===
+date,total_h,light_h,deep_h,rem_h,awake_h,performance%,efficiency%,resp_rate
+${sleepCSV || 'No data'}
 
-=== Last 7 Days: Workouts ===
-${workoutLines || '  No data'}
+=== Daily Cycles (${cycles365d.length} days) ===
+date,strain,kj,avg_hr
+${cyclesCSV || 'No data'}
 
-=== Last 7 Days: Daily Cycles ===
-${cycleLines || '  No data'}
-
-=== 30-Day Aggregates ===
-${agg30d || '  No data'}
+=== Workouts (${workouts365d.length} sessions) ===
+date,sport,strain,avg_hr,max_hr,kj,distance_m
+${workoutsCSV || 'No data'}
 
 GUIDELINES:
-- Reference specific numbers from the data above when answering questions
+- You have the FULL daily data for the last year — use it to identify trends, patterns, weekly/monthly averages, and correlations
+- Reference specific numbers and date ranges when answering questions
 - Provide actionable health insights and trends
 - Be encouraging but honest about areas for improvement
 - When the user asks about trends or wants a visualization, output a Chart.js config inside a chartjs code block
@@ -80,6 +80,7 @@ GUIDELINES:
 - Use dark theme colors: backgrounds transparent, grid colors rgba(255,255,255,0.1)
 - Use these colors: green #22c55e, blue #3b82f6, red #ef4444, yellow #eab308, purple #a855f7, cyan #06b6d4
 - Keep chart configs compact — labels as short dates (MM/DD), datasets with proper colors
+- For long time ranges (>60 data points), use line charts with pointRadius:0 and tension:0.3
 - IMPORTANT: wrap chart configs in triple backtick blocks with the language identifier "chartjs"
 
 Example chart output:
@@ -99,20 +100,7 @@ Example chart output:
 async function* streamChat(message, sessionId, config) {
   const anthropic = getClient(config);
   const context = db.getAIContext();
-
-  // Check if user is asking about trends/longer periods — add extended context
-  const trendKeywords = ['trend', 'month', '30 day', 'last month', 'over time', 'compare', 'history', 'progress'];
-  const needsExtended = trendKeywords.some(kw => message.toLowerCase().includes(kw));
-
-  let extContext = '';
-  if (needsExtended) {
-    const ext = db.getExtendedAIContext();
-    const rec30 = ext.recovery30d.map(r => `${r.start_time?.slice(0, 10)}:${r.recovery_score?.toFixed(0)}`).join(', ');
-    const sleep30 = ext.sleep30d.map(s => `${s.start_time?.slice(0, 10)}:${msToHours(s.light + s.deep + s.rem)}h`).join(', ');
-    extContext = `\n\n=== Extended 30-Day Data ===\nRecovery: ${rec30}\nSleep duration: ${sleep30}\n`;
-  }
-
-  const systemPrompt = buildSystemPrompt(context) + extContext;
+  const systemPrompt = buildSystemPrompt(context);
 
   // Load chat history for context
   const history = db.getChatHistory(sessionId, 20);
@@ -124,7 +112,7 @@ async function* streamChat(message, sessionId, config) {
 
   const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: systemPrompt,
     messages,
   });

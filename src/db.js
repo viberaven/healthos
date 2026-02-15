@@ -327,10 +327,19 @@ function getAllSyncStatus() {
 
 function updateSyncStatus(dataType, status, lastSyncedAt, errorMessage) {
   const count = getRecordCount(dataType);
-  prepare('updateSyncStatus', `
-    UPDATE sync_metadata SET status = ?, last_synced_at = ?, error_message = ?, record_count = ?, updated_at = datetime('now')
-    WHERE data_type = ?
-  `).run(status, lastSyncedAt, errorMessage || null, count, dataType);
+  if (lastSyncedAt !== undefined && lastSyncedAt !== null) {
+    // Update both status and last_synced_at (on completion)
+    prepare('updateSyncStatusFull', `
+      UPDATE sync_metadata SET status = ?, last_synced_at = ?, error_message = ?, record_count = ?, updated_at = datetime('now')
+      WHERE data_type = ?
+    `).run(status, lastSyncedAt, errorMessage || null, count, dataType);
+  } else {
+    // Update status only, preserve existing last_synced_at (on start/error)
+    prepare('updateSyncStatusPartial', `
+      UPDATE sync_metadata SET status = ?, error_message = ?, record_count = ?, updated_at = datetime('now')
+      WHERE data_type = ?
+    `).run(status, errorMessage || null, count, dataType);
+  }
 }
 
 function getRecordCount(dataType) {
@@ -363,8 +372,9 @@ function getChatHistory(sessionId, limit = 50) {
 
 // --- Dashboard aggregate queries ---
 
-function getDashboardData() {
+function getDashboardData(days) {
   const d = getDb();
+  const filter = days ? `-${days} days` : null;
 
   const latestRecovery = d.prepare(`
     SELECT r.*, c.start_time as cycle_start FROM recovery r
@@ -380,37 +390,41 @@ function getDashboardData() {
     SELECT * FROM sleep WHERE nap = 0 ORDER BY start_time DESC LIMIT 1
   `).get();
 
-  const recovery30d = d.prepare(`
-    SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate, c.start_time
-    FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
-    WHERE c.start_time >= datetime('now', '-30 days')
-    ORDER BY c.start_time ASC
-  `).all();
+  const recoveryRange = d.prepare(filter
+    ? `SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate, c.start_time
+       FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
+       WHERE c.start_time >= datetime('now', ?) ORDER BY c.start_time ASC`
+    : `SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate, c.start_time
+       FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
+       ORDER BY c.start_time ASC`
+  ).all(...(filter ? [filter] : []));
 
-  const cycles30d = d.prepare(`
-    SELECT score_strain, score_kilojoule, start_time
-    FROM cycles WHERE start_time >= datetime('now', '-30 days')
-    ORDER BY start_time ASC
-  `).all();
+  const cyclesRange = d.prepare(filter
+    ? `SELECT score_strain, score_kilojoule, start_time FROM cycles WHERE start_time >= datetime('now', ?) ORDER BY start_time ASC`
+    : `SELECT score_strain, score_kilojoule, start_time FROM cycles ORDER BY start_time ASC`
+  ).all(...(filter ? [filter] : []));
 
-  const sleep30d = d.prepare(`
-    SELECT score_stage_summary_total_light_sleep_time_milli as light,
-           score_stage_summary_total_slow_wave_sleep_time_milli as deep,
-           score_stage_summary_total_rem_sleep_time_milli as rem,
-           score_stage_summary_total_awake_time_milli as awake,
-           score_sleep_performance_percentage as performance,
-           start_time
-    FROM sleep WHERE nap = 0 AND start_time >= datetime('now', '-30 days')
-    ORDER BY start_time ASC
-  `).all();
+  const sleepRange = d.prepare(filter
+    ? `SELECT score_stage_summary_total_light_sleep_time_milli as light,
+              score_stage_summary_total_slow_wave_sleep_time_milli as deep,
+              score_stage_summary_total_rem_sleep_time_milli as rem,
+              score_stage_summary_total_awake_time_milli as awake,
+              score_sleep_performance_percentage as performance, start_time
+       FROM sleep WHERE nap = 0 AND start_time >= datetime('now', ?) ORDER BY start_time ASC`
+    : `SELECT score_stage_summary_total_light_sleep_time_milli as light,
+              score_stage_summary_total_slow_wave_sleep_time_milli as deep,
+              score_stage_summary_total_rem_sleep_time_milli as rem,
+              score_stage_summary_total_awake_time_milli as awake,
+              score_sleep_performance_percentage as performance, start_time
+       FROM sleep WHERE nap = 0 ORDER BY start_time ASC`
+  ).all(...(filter ? [filter] : []));
 
-  const recentWorkouts = d.prepare(`
-    SELECT sport_name, score_strain, score_kilojoule, start_time
-    FROM workouts WHERE start_time >= datetime('now', '-30 days')
-    ORDER BY start_time DESC LIMIT 10
-  `).all();
+  const workoutsRange = d.prepare(filter
+    ? `SELECT sport_name, score_strain, score_kilojoule, start_time FROM workouts WHERE start_time >= datetime('now', ?) ORDER BY start_time DESC LIMIT 20`
+    : `SELECT sport_name, score_strain, score_kilojoule, start_time FROM workouts ORDER BY start_time DESC LIMIT 20`
+  ).all(...(filter ? [filter] : []));
 
-  return { latestRecovery, latestCycle, latestSleep, recovery30d, cycles30d, sleep30d, recentWorkouts };
+  return { latestRecovery, latestCycle, latestSleep, recoveryRange, cyclesRange, sleepRange, workoutsRange };
 }
 
 // --- AI context queries ---
@@ -418,14 +432,14 @@ function getDashboardData() {
 function getAIContext() {
   const d = getDb();
 
-  const recovery7d = d.prepare(`
-    SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate, r.spo2_percentage, c.start_time
+  const recovery365d = d.prepare(`
+    SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate, r.spo2_percentage, r.skin_temp_celsius, c.start_time
     FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
-    WHERE c.start_time >= datetime('now', '-7 days')
+    WHERE c.start_time >= datetime('now', '-365 days')
     ORDER BY c.start_time ASC
   `).all();
 
-  const sleep7d = d.prepare(`
+  const sleep365d = d.prepare(`
     SELECT score_stage_summary_total_light_sleep_time_milli as light,
            score_stage_summary_total_slow_wave_sleep_time_milli as deep,
            score_stage_summary_total_rem_sleep_time_milli as rem,
@@ -434,82 +448,30 @@ function getAIContext() {
            score_sleep_efficiency_percentage as efficiency,
            score_respiratory_rate as respiratory_rate,
            start_time
-    FROM sleep WHERE nap = 0 AND start_time >= datetime('now', '-7 days')
+    FROM sleep WHERE nap = 0 AND start_time >= datetime('now', '-365 days')
     ORDER BY start_time ASC
   `).all();
 
-  const workouts7d = d.prepare(`
+  const workouts365d = d.prepare(`
     SELECT sport_name, score_strain, score_average_heart_rate, score_max_heart_rate,
            score_kilojoule, score_distance_meter, start_time, end_time
-    FROM workouts WHERE start_time >= datetime('now', '-7 days')
+    FROM workouts WHERE start_time >= datetime('now', '-365 days')
     ORDER BY start_time ASC
   `).all();
 
-  const cycles7d = d.prepare(`
+  const cycles365d = d.prepare(`
     SELECT score_strain, score_kilojoule, score_average_heart_rate, start_time
-    FROM cycles WHERE start_time >= datetime('now', '-7 days')
+    FROM cycles WHERE start_time >= datetime('now', '-365 days')
     ORDER BY start_time ASC
   `).all();
-
-  // 30-day aggregates
-  const recovery30dAvg = d.prepare(`
-    SELECT AVG(r.recovery_score) as avg_recovery, AVG(r.hrv_rmssd_milli) as avg_hrv,
-           AVG(r.resting_heart_rate) as avg_rhr, MIN(r.recovery_score) as min_recovery,
-           MAX(r.recovery_score) as max_recovery
-    FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
-    WHERE c.start_time >= datetime('now', '-30 days')
-  `).get();
-
-  const sleep30dAvg = d.prepare(`
-    SELECT AVG(score_stage_summary_total_in_bed_time_milli) as avg_in_bed,
-           AVG(score_sleep_performance_percentage) as avg_performance,
-           AVG(score_sleep_efficiency_percentage) as avg_efficiency
-    FROM sleep WHERE nap = 0 AND start_time >= datetime('now', '-30 days')
-  `).get();
-
-  const strain30dAvg = d.prepare(`
-    SELECT AVG(score_strain) as avg_strain, MAX(score_strain) as max_strain
-    FROM cycles WHERE start_time >= datetime('now', '-30 days')
-  `).get();
 
   const profile = getProfile();
   const bodyMeasurements = getBodyMeasurements();
 
   return {
-    recovery7d, sleep7d, workouts7d, cycles7d,
-    recovery30dAvg, sleep30dAvg, strain30dAvg,
+    recovery365d, sleep365d, workouts365d, cycles365d,
     profile, bodyMeasurements,
   };
-}
-
-function getExtendedAIContext() {
-  const d = getDb();
-
-  const recovery30d = d.prepare(`
-    SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate, c.start_time
-    FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
-    WHERE c.start_time >= datetime('now', '-30 days')
-    ORDER BY c.start_time ASC
-  `).all();
-
-  const sleep30d = d.prepare(`
-    SELECT score_stage_summary_total_light_sleep_time_milli as light,
-           score_stage_summary_total_slow_wave_sleep_time_milli as deep,
-           score_stage_summary_total_rem_sleep_time_milli as rem,
-           score_stage_summary_total_awake_time_milli as awake,
-           score_sleep_performance_percentage as performance,
-           start_time
-    FROM sleep WHERE nap = 0 AND start_time >= datetime('now', '-30 days')
-    ORDER BY start_time ASC
-  `).all();
-
-  const workouts30d = d.prepare(`
-    SELECT sport_name, score_strain, score_average_heart_rate, score_kilojoule, start_time
-    FROM workouts WHERE start_time >= datetime('now', '-30 days')
-    ORDER BY start_time ASC
-  `).all();
-
-  return { recovery30d, sleep30d, workouts30d };
 }
 
 module.exports = {
@@ -523,5 +485,5 @@ module.exports = {
   upsertWorkout, getWorkouts, getWorkoutCount,
   getSyncStatus, getAllSyncStatus, updateSyncStatus,
   saveChatMessage, getChatHistory,
-  getDashboardData, getAIContext, getExtendedAIContext,
+  getDashboardData, getAIContext,
 };

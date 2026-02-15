@@ -26,7 +26,7 @@ async function syncDataType(type, config, onProgress) {
   };
 
   try {
-    db.updateSyncStatus(type, 'syncing', null, null);
+    db.updateSyncStatus(type, 'syncing', null);
     report('Starting...');
 
     let count = 0;
@@ -81,6 +81,7 @@ async function syncDataType(type, config, onProgress) {
     return { type, status: 'completed', count };
   } catch (err) {
     db.updateSyncStatus(type, 'error', null, err.message);
+    // last_synced_at is preserved so next sync is still incremental
     report(`Error: ${err.message}`);
     return { type, status: 'error', error: err.message };
   }

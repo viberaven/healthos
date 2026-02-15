@@ -14,7 +14,11 @@ function createRouter() {
   // GET /api/dashboard — aggregated dashboard data
   router.get('/dashboard', (req, res) => {
     try {
-      const data = db.getDashboardData();
+      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+      const raw = req.query.days;
+      // null/undefined = max (no filter), otherwise validate
+      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
+      const data = db.getDashboardData(days);
       res.json(data);
     } catch (err) {
       console.error('[API] Dashboard error:', err);
