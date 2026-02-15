@@ -19,8 +19,15 @@ function n(v, d) {
   return d != null ? v.toFixed(d) : String(v);
 }
 
-function buildSystemPrompt(context) {
+function energy(kj, unit) {
+  if (kj == null) return '';
+  if (unit === 'kJ') return String(Math.round(kj));
+  return String(Math.round(kj / 4.184));
+}
+
+function buildSystemPrompt(context, config) {
   const { recovery365d, sleep365d, workouts365d, cycles365d, profile, bodyMeasurements } = context;
+  const eUnit = config.display?.energyUnit || 'kcal';
 
   let profileInfo = '';
   if (profile) {
@@ -41,14 +48,14 @@ function buildSystemPrompt(context) {
     return `${s.start_time?.slice(0, 10)},${total},${msToH(s.light)},${msToH(s.deep)},${msToH(s.rem)},${msToH(s.awake)},${n(s.performance, 0)},${n(s.efficiency, 0)},${n(s.respiratory_rate, 1)}`;
   }).join('\n');
 
-  // Cycles: compact CSV — date,strain,kj,avg_hr
+  // Cycles: compact CSV — date,strain,energy,avg_hr
   const cyclesCSV = cycles365d.map(c =>
-    `${c.start_time?.slice(0, 10)},${n(c.score_strain, 1)},${n(c.score_kilojoule, 0)},${n(c.score_average_heart_rate, 0)}`
+    `${c.start_time?.slice(0, 10)},${n(c.score_strain, 1)},${energy(c.score_kilojoule, eUnit)},${n(c.score_average_heart_rate, 0)}`
   ).join('\n');
 
-  // Workouts: compact CSV — date,sport,strain,avg_hr,max_hr,kj,distance_m
+  // Workouts: compact CSV — date,sport,strain,avg_hr,max_hr,energy,distance_m
   const workoutsCSV = workouts365d.map(w =>
-    `${w.start_time?.slice(0, 10)},${w.sport_name || 'Unknown'},${n(w.score_strain, 1)},${n(w.score_average_heart_rate, 0)},${n(w.score_max_heart_rate, 0)},${n(w.score_kilojoule, 0)},${n(w.score_distance_meter, 0)}`
+    `${w.start_time?.slice(0, 10)},${w.sport_name || 'Unknown'},${n(w.score_strain, 1)},${n(w.score_average_heart_rate, 0)},${n(w.score_max_heart_rate, 0)},${energy(w.score_kilojoule, eUnit)},${n(w.score_distance_meter, 0)}`
   ).join('\n');
 
   return `You are a health data analyst assistant for HealthOS. You have access to the user's WHOOP health data for the last year (365 days). All daily data is provided below in CSV format.
@@ -63,11 +70,11 @@ date,total_h,light_h,deep_h,rem_h,awake_h,performance%,efficiency%,resp_rate
 ${sleepCSV || 'No data'}
 
 === Daily Cycles (${cycles365d.length} days) ===
-date,strain,kj,avg_hr
+date,strain,${eUnit},avg_hr
 ${cyclesCSV || 'No data'}
 
 === Workouts (${workouts365d.length} sessions) ===
-date,sport,strain,avg_hr,max_hr,kj,distance_m
+date,sport,strain,avg_hr,max_hr,${eUnit},distance_m
 ${workoutsCSV || 'No data'}
 
 GUIDELINES:
@@ -100,7 +107,7 @@ Example chart output:
 async function* streamChat(message, sessionId, config) {
   const anthropic = getClient(config);
   const context = db.getAIContext();
-  const systemPrompt = buildSystemPrompt(context);
+  const systemPrompt = buildSystemPrompt(context, config);
 
   // Load chat history for context
   const history = db.getChatHistory(sessionId, 20);
@@ -111,7 +118,7 @@ async function* streamChat(message, sessionId, config) {
   db.saveChatMessage(sessionId, 'user', message);
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-4-5-20250929',
+    model: config.anthropic.model,
     max_tokens: 4096,
     system: systemPrompt,
     messages,

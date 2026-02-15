@@ -1,8 +1,13 @@
 const express = require('express');
 const db = require('../db');
 
-function createRouter() {
+function createRouter(config) {
   const router = express.Router();
+
+  // GET /api/config — public display preferences (no auth required)
+  router.get('/config', (req, res) => {
+    res.json({ energyUnit: config.display?.energyUnit || 'kcal' });
+  });
 
   // Middleware: require authentication
   router.use((req, res, next) => {

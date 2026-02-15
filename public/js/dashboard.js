@@ -104,7 +104,7 @@
         <div class="stat-card">
           <div class="stat-label">Strain</div>
           <div class="stat-value text-blue-400">${strain != null ? strain.toFixed(1) : '—'}</div>
-          <div class="stat-sub">${latestCycle?.score_kilojoule != null ? Math.round(latestCycle.score_kilojoule) + ' kJ' : '—'}</div>
+          <div class="stat-sub">${window.healthOS.formatEnergy(latestCycle?.score_kilojoule)}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Sleep</div>

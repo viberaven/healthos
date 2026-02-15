@@ -6,9 +6,15 @@ module.exports = {
     redirectUri: 'http://localhost:3000/auth/callback',
   },
 
-  // Anthropic API key — https://console.anthropic.com
+  // Anthropic API — https://platform.claude.com/
   anthropic: {
     apiKey: 'YOUR_ANTHROPIC_API_KEY',
+    model: 'claude-sonnet-4-5-20250929',
+  },
+
+  // Display preferences
+  display: {
+    energyUnit: 'kcal', // 'kcal' or 'kJ'
   },
 
   // Server settings

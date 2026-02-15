@@ -1,11 +1,14 @@
 // HealthOS SPA — Router, Auth, Sync, Utilities
 
 (function () {
+  const KJ_TO_KCAL = 1 / 4.184;
+
   const state = {
     authenticated: false,
     profile: null,
     currentPage: null,
     syncing: false,
+    energyUnit: 'kcal',
   };
 
   // --- Utilities ---
@@ -54,6 +57,16 @@
     if (score >= 67) return '#22c55e';
     if (score >= 34) return '#eab308';
     return '#ef4444';
+  }
+
+  function formatEnergy(kj) {
+    if (kj == null) return '—';
+    if (state.energyUnit === 'kJ') return Math.round(kj) + ' kJ';
+    return Math.round(kj * KJ_TO_KCAL) + ' kcal';
+  }
+
+  function energyLabel() {
+    return state.energyUnit === 'kJ' ? 'kJ' : 'kcal';
   }
 
   async function apiFetch(url, opts = {}) {
@@ -239,6 +252,7 @@
     apiFetch, apiJSON,
     msToHours, msToDecimalHours, formatDate, formatDateTime, shortDate,
     recoveryColor, recoveryColorHex,
+    formatEnergy, energyLabel,
     syncAll, logout,
     // Populated by other modules:
     renderDashboard: () => {},
@@ -246,5 +260,8 @@
     renderChat: () => {},
   };
 
-  checkAuth();
+  // Load display config then check auth
+  fetch('/api/config').then(r => r.json()).then(cfg => {
+    state.energyUnit = cfg.energyUnit || 'kcal';
+  }).catch(() => {}).finally(() => checkAuth());
 })();

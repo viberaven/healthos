@@ -47,7 +47,7 @@
         { key: 'score_strain', label: 'Strain', format: v => v != null ? v.toFixed(1) : '—' },
         { key: 'score_average_heart_rate', label: 'Avg HR', format: v => v != null ? v + ' bpm' : '—' },
         { key: 'score_max_heart_rate', label: 'Max HR', format: v => v != null ? v + ' bpm' : '—' },
-        { key: 'score_kilojoule', label: 'Energy', format: v => v != null ? Math.round(v) + ' kJ' : '—' },
+        { key: 'score_kilojoule', label: 'Energy', format: v => window.healthOS.formatEnergy(v) },
         {
           key: 'score_distance_meter', label: 'Distance',
           format: v => {
@@ -64,7 +64,7 @@
         { key: 'start_time', label: 'Start', format: v => window.healthOS.formatDateTime(v) },
         { key: 'end_time', label: 'End', format: v => window.healthOS.formatDateTime(v) },
         { key: 'score_strain', label: 'Strain', format: v => v != null ? v.toFixed(1) : '—' },
-        { key: 'score_kilojoule', label: 'Energy', format: v => v != null ? Math.round(v) + ' kJ' : '—' },
+        { key: 'score_kilojoule', label: 'Energy', format: v => window.healthOS.formatEnergy(v) },
         { key: 'score_average_heart_rate', label: 'Avg HR', format: v => v != null ? v + ' bpm' : '—' },
         { key: 'score_max_heart_rate', label: 'Max HR', format: v => v != null ? v + ' bpm' : '—' },
       ],

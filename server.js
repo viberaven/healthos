@@ -38,7 +38,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
 app.use('/auth', require('./src/routes/auth')(config));
-app.use('/api', require('./src/routes/api')());
+app.use('/api', require('./src/routes/api')(config));
 app.use('/api/sync', require('./src/routes/sync')(config));
 app.use('/api/chat', require('./src/routes/chat')(config));
 
