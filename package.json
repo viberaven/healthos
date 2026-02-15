@@ -1,0 +1,14 @@
+{
+  "name": "healthos",
+  "version": "1.0.0",
+  "description": "Health data dashboard powered by WHOOP API + AI chat assistant",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.21.0"
+  }
+}

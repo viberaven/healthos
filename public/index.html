@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealthOS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: { DEFAULT: '#1a1a2e', light: '#222244', lighter: '#2a2a4a' },
+            accent: { green: '#22c55e', red: '#ef4444', yellow: '#eab308', blue: '#3b82f6' },
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col md:flex-row">
+
+  <!-- Desktop Sidebar -->
+  <aside id="sidebar" class="hidden md:flex md:flex-col w-60 bg-gray-900 border-r border-gray-800 min-h-screen">
+    <div class="p-5 border-b border-gray-800">
+      <h1 class="text-xl font-bold text-white tracking-tight">HealthOS</h1>
+      <p id="sidebar-user" class="text-xs text-gray-500 mt-1"></p>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <a href="#dashboard" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors" data-page="dashboard">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        Dashboard
+      </a>
+      <a href="#recovery" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors" data-page="recovery">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+        Recovery
+      </a>
+      <a href="#sleep" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors" data-page="sleep">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        Sleep
+      </a>
+      <a href="#workouts" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors" data-page="workouts">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Workouts
+      </a>
+      <a href="#cycles" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors" data-page="cycles">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Cycles
+      </a>
+      <a href="#chat" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors" data-page="chat">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+        AI Chat
+      </a>
+    </nav>
+    <div class="p-3 border-t border-gray-800 space-y-2">
+      <button id="sidebar-sync-btn" onclick="window.healthOS.syncAll()" class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Sync Data
+      </button>
+      <button id="sidebar-logout-btn" onclick="window.healthOS.logout()" class="w-full px-3 py-2 text-gray-500 hover:text-gray-300 text-sm rounded-lg transition-colors">
+        Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="flex-1 flex flex-col min-h-screen pb-16 md:pb-0">
+    <!-- Top bar (mobile) -->
+    <header class="md:hidden flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800">
+      <h1 class="text-lg font-bold text-white">HealthOS</h1>
+      <button id="mobile-sync-btn" onclick="window.healthOS.syncAll()" class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg">
+        Sync
+      </button>
+    </header>
+
+    <!-- Login screen -->
+    <div id="login-screen" class="hidden flex-1 flex items-center justify-center">
+      <div class="text-center p-8 max-w-sm">
+        <h2 class="text-3xl font-bold text-white mb-2">HealthOS</h2>
+        <p class="text-gray-400 mb-8">Connect your WHOOP to get started</p>
+        <a href="/auth/login" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+          Connect WHOOP
+        </a>
+      </div>
+    </div>
+
+    <!-- Sync progress overlay -->
+    <div id="sync-overlay" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+      <div class="bg-gray-900 rounded-2xl p-6 max-w-sm w-full mx-4 border border-gray-700">
+        <h3 class="text-lg font-semibold text-white mb-4">Syncing Data</h3>
+        <div id="sync-progress" class="space-y-2"></div>
+        <p id="sync-status-text" class="text-sm text-gray-400 mt-4">Starting sync...</p>
+      </div>
+    </div>
+
+    <!-- Page container -->
+    <div id="page-container" class="hidden flex-1 overflow-y-auto">
+      <div id="page-content" class="p-4 md:p-6 max-w-7xl mx-auto w-full"></div>
+    </div>
+  </main>
+
+  <!-- Mobile bottom nav -->
+  <nav id="mobile-nav" class="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-40">
+    <div class="flex justify-around">
+      <a href="#dashboard" class="mobile-nav-link flex flex-col items-center py-2 px-1 text-xs text-gray-500" data-page="dashboard">
+        <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        Home
+      </a>
+      <a href="#recovery" class="mobile-nav-link flex flex-col items-center py-2 px-1 text-xs text-gray-500" data-page="recovery">
+        <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+        Recovery
+      </a>
+      <a href="#sleep" class="mobile-nav-link flex flex-col items-center py-2 px-1 text-xs text-gray-500" data-page="sleep">
+        <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        Sleep
+      </a>
+      <a href="#workouts" class="mobile-nav-link flex flex-col items-center py-2 px-1 text-xs text-gray-500" data-page="workouts">
+        <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Workouts
+      </a>
+      <a href="#chat" class="mobile-nav-link flex flex-col items-center py-2 px-1 text-xs text-gray-500" data-page="chat">
+        <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+        Chat
+      </a>
+    </div>
+  </nav>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/data-browser.js"></script>
+  <script src="/js/chat.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+module.exports = {
+  // WHOOP OAuth2 credentials — https://developer.whoop.com
+  whoop: {
+    clientId: 'YOUR_WHOOP_CLIENT_ID',
+    clientSecret: 'YOUR_WHOOP_CLIENT_SECRET',
+    redirectUri: 'http://localhost:3000/auth/callback',
+  },
+
+  // Anthropic API key — https://console.anthropic.com
+  anthropic: {
+    apiKey: 'YOUR_ANTHROPIC_API_KEY',
+  },
+
+  // Server settings
+  server: {
+    port: 3000,
+    sessionSecret: 'change-this-to-a-random-string',
+  },
+};
