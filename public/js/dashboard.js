@@ -135,10 +135,6 @@
           <h3>Sleep Breakdown (${rangeLabel()})</h3>
           <div style="height:220px"><canvas id="chart-sleep"></canvas></div>
         </div>
-        <div class="chart-card lg:col-span-2">
-          <h3>Recent Workouts by Strain</h3>
-          <div style="height:${Math.max(180, (workoutsRange?.length || 1) * 32)}px"><canvas id="chart-workouts"></canvas></div>
-        </div>
       </div>
     `;
 
@@ -261,29 +257,6 @@
       });
     }
 
-    // --- Workouts horizontal bar ---
-    if (workoutsRange?.length) {
-      createChart(document.getElementById('chart-workouts'), {
-        type: 'bar',
-        data: {
-          labels: workoutsRange.map(w => `${w.sport_name || 'Workout'} (${window.healthOS.shortDate(w.start_time)})`),
-          datasets: [{
-            label: 'Strain',
-            data: workoutsRange.map(w => w.score_strain),
-            backgroundColor: workoutsRange.map((_, i) => {
-              const colors = ['#22c55e', '#3b82f6', '#a855f7', '#eab308', '#06b6d4', '#f97316', '#ec4899', '#14b8a6', '#f43f5e', '#8b5cf6'];
-              return colors[i % colors.length];
-            }),
-            borderRadius: 4,
-          }],
-        },
-        options: {
-          indexAxis: 'y',
-          scales: { x: { beginAtZero: true }, y: {} },
-          plugins: { legend: { display: false } },
-        },
-      });
-    }
   }
 
   window.healthOS.renderDashboard = renderDashboard;
