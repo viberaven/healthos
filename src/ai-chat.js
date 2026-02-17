@@ -1,11 +1,11 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenAI } = require('@google/genai');
 const db = require('./db');
 
 let client = null;
 
 function getClient(config) {
   if (!client) {
-    client = new Anthropic({ apiKey: config.anthropic.apiKey });
+    client = new GoogleGenAI({ apiKey: config.gemini.apiKey });
   }
   return client;
 }
@@ -105,30 +105,37 @@ Example chart output:
 }
 
 async function* streamChat(message, sessionId, config) {
-  const anthropic = getClient(config);
+  const ai = getClient(config);
   const context = db.getAIContext();
   const systemPrompt = buildSystemPrompt(context, config);
 
   // Load chat history for context
   const history = db.getChatHistory(sessionId, 20);
-  const messages = history.map(h => ({ role: h.role, content: h.content }));
-  messages.push({ role: 'user', content: message });
+
+  // Build contents array with Gemini role format (user/model)
+  const contents = history.map(h => ({
+    role: h.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: h.content }],
+  }));
+  contents.push({ role: 'user', parts: [{ text: message }] });
 
   // Save user message
   db.saveChatMessage(sessionId, 'user', message);
 
-  const stream = anthropic.messages.stream({
-    model: config.anthropic.model,
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages,
+  const response = await ai.models.generateContentStream({
+    model: config.gemini.model,
+    contents,
+    config: {
+      systemInstruction: systemPrompt,
+      maxOutputTokens: 4096,
+    },
   });
 
   let fullResponse = '';
 
-  for await (const event of stream) {
-    if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-      const text = event.delta.text;
+  for await (const chunk of response) {
+    const text = chunk.text;
+    if (text) {
       fullResponse += text;
       yield text;
     }

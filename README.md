@@ -2,7 +2,7 @@
 
 Health data dashboard powered by WHOOP API with an AI chat assistant.
 
-Connects to your WHOOP account via OAuth2, imports all health data into a local SQLite database, and presents it through a modern dark-themed dashboard with charts. Includes an AI assistant (Claude) that can analyze your data and render inline visualizations.
+Connects to your WHOOP account via OAuth2, imports all health data into a local SQLite database, and presents it through a modern dark-themed dashboard with charts. Includes an AI assistant (Google Gemini) that can analyze your data and render inline visualizations.
 
 ## Features
 
@@ -10,7 +10,7 @@ Connects to your WHOOP account via OAuth2, imports all health data into a local 
 - **Incremental sync** with 2-hour overlap buffer to ensure no gaps from pending scores
 - **Interactive dashboard** with recovery trend, HRV trend, daily strain, and sleep breakdown charts
 - **Data browser** with paginated tables for all data types
-- **AI chat assistant** powered by Claude — ask questions about your health data and get answers with inline charts
+- **AI chat assistant** powered by Google Gemini — ask questions about your health data and get answers with inline charts
 - **Mobile-first** responsive design with Tailwind CSS
 
 ## Setup
@@ -29,7 +29,7 @@ cp config.js.example config.js
 
 You'll need:
 - **WHOOP OAuth credentials** from https://developer.whoop.com — set `clientId`, `clientSecret`, and `redirectUri`
-- **Anthropic API key** from https://console.anthropic.com — set `anthropic.apiKey`
+- **Google Gemini API key** from https://ai.google.dev/ — set `gemini.apiKey`
 
 3. Start the server:
 
@@ -50,8 +50,8 @@ See `config.js.example` for all options:
 | `whoop.clientId` | WHOOP API client ID |
 | `whoop.clientSecret` | WHOOP API client secret |
 | `whoop.redirectUri` | OAuth callback URL (default: `http://localhost:3000/auth/callback`) |
-| `anthropic.apiKey` | Anthropic API key for AI chat |
-| `anthropic.model` | Claude model (default: `claude-sonnet-4-5-20250929`) |
+| `gemini.apiKey` | Google Gemini API key for AI chat |
+| `gemini.model` | Gemini model (default: `gemini-3-flash-preview`) |
 | `display.energyUnit` | `kcal` or `kJ` |
 | `server.port` | Server port (default: 3000) |
 | `server.sessionSecret` | Session secret (change this) |
@@ -77,7 +77,7 @@ healthos/
 │   ├── db.js                  # SQLite schema and queries
 │   ├── whoop-api.js           # WHOOP OAuth and API client
 │   ├── sync.js                # Incremental sync engine
-│   ├── ai-chat.js             # Claude chat integration
+│   ├── ai-chat.js             # Gemini chat integration
 │   └── routes/
 │       ├── auth.js            # OAuth routes
 │       ├── api.js             # Data API routes
@@ -98,7 +98,7 @@ healthos/
 
 - **Backend**: Node.js, Express, better-sqlite3
 - **Frontend**: Vanilla JS SPA, Tailwind CSS (CDN), Chart.js
-- **AI**: Anthropic Claude API with streaming responses
+- **AI**: Google Gemini API with streaming responses
 - **Database**: SQLite with WAL mode
 
 ## License

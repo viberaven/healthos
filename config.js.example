@@ -6,10 +6,10 @@ module.exports = {
     redirectUri: 'http://localhost:3000/auth/callback',
   },
 
-  // Anthropic API — https://platform.claude.com/
-  anthropic: {
-    apiKey: 'YOUR_ANTHROPIC_API_KEY',
-    model: 'claude-sonnet-4-5-20250929',
+  // Google Gemini API — https://ai.google.dev/
+  gemini: {
+    apiKey: 'YOUR_GEMINI_API_KEY',
+    model: 'gemini-3-flash-preview',
   },
 
   // Display preferences
