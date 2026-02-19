@@ -16,124 +16,50 @@ function createRouter(config) {
     next();
   });
 
+  // Helper: parse ?days= query param into a number or null (max)
+  const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+  function parseDays(raw) {
+    return raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
+  }
+
+  // Helper: register a chart endpoint backed by a db function(days)
+  function chartRoute(path, dbFn) {
+    router.get(path, (req, res) => {
+      try {
+        res.json(dbFn(parseDays(req.query.days)));
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+  }
+
   // GET /api/dashboard — aggregated dashboard data
-  router.get('/dashboard', (req, res) => {
-    try {
-      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
-      const raw = req.query.days;
-      // null/undefined = max (no filter), otherwise validate
-      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
-      const data = db.getDashboardData(days);
-      res.json(data);
-    } catch (err) {
-      console.error('[API] Dashboard error:', err);
-      res.status(500).json({ error: err.message });
-    }
-  });
+  chartRoute('/dashboard', (days) => db.getDashboardData(days));
 
-  // GET /api/workouts/chart — workouts chart data for a time range
-  router.get('/workouts/chart', (req, res) => {
-    try {
-      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
-      const raw = req.query.days;
-      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
-      const data = db.getWorkoutsChartData(days);
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+  // Chart endpoints
+  chartRoute('/workouts/chart', (days) => db.getWorkoutsChartData(days));
+  chartRoute('/cycles/chart', (days) => db.getCyclesChartData(days));
+  chartRoute('/recovery/chart', (days) => db.getRecoveryChartData(days));
+  chartRoute('/sleep/chart', (days) => db.getSleepChartData(days));
 
-  // GET /api/cycles/chart — cycles chart data for a time range
-  router.get('/cycles/chart', (req, res) => {
-    try {
-      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
-      const raw = req.query.days;
-      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
-      const data = db.getCyclesChartData(days);
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+  // Helper: register a paginated list endpoint
+  function paginatedRoute(path, getRows, getCount) {
+    router.get(path, (req, res) => {
+      try {
+        const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+        const offset = parseInt(req.query.offset) || 0;
+        res.json({ data: getRows(limit, offset), total: getCount(), limit, offset });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+  }
 
-  // GET /api/recovery/chart — recovery chart data for a time range
-  router.get('/recovery/chart', (req, res) => {
-    try {
-      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
-      const raw = req.query.days;
-      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
-      const data = db.getRecoveryChartData(days);
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // GET /api/sleep/chart — sleep chart data for a time range
-  router.get('/sleep/chart', (req, res) => {
-    try {
-      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
-      const raw = req.query.days;
-      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
-      const data = db.getSleepChartData(days);
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // GET /api/recovery — paginated recovery data
-  router.get('/recovery', (req, res) => {
-    try {
-      const limit = Math.min(parseInt(req.query.limit) || 30, 100);
-      const offset = parseInt(req.query.offset) || 0;
-      const data = db.getRecoveries(limit, offset);
-      const total = db.getRecoveryCount();
-      res.json({ data, total, limit, offset });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // GET /api/sleep — paginated sleep data
-  router.get('/sleep', (req, res) => {
-    try {
-      const limit = Math.min(parseInt(req.query.limit) || 30, 100);
-      const offset = parseInt(req.query.offset) || 0;
-      const data = db.getSleeps(limit, offset);
-      const total = db.getSleepCount();
-      res.json({ data, total, limit, offset });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // GET /api/workouts — paginated workout data
-  router.get('/workouts', (req, res) => {
-    try {
-      const limit = Math.min(parseInt(req.query.limit) || 30, 100);
-      const offset = parseInt(req.query.offset) || 0;
-      const data = db.getWorkouts(limit, offset);
-      const total = db.getWorkoutCount();
-      res.json({ data, total, limit, offset });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // GET /api/cycles — paginated cycle data
-  router.get('/cycles', (req, res) => {
-    try {
-      const limit = Math.min(parseInt(req.query.limit) || 30, 100);
-      const offset = parseInt(req.query.offset) || 0;
-      const data = db.getCycles(limit, offset);
-      const total = db.getCycleCount();
-      res.json({ data, total, limit, offset });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+  // Paginated data endpoints
+  paginatedRoute('/recovery', db.getRecoveries, db.getRecoveryCount);
+  paginatedRoute('/sleep', db.getSleeps, db.getSleepCount);
+  paginatedRoute('/workouts', db.getWorkouts, db.getWorkoutCount);
+  paginatedRoute('/cycles', db.getCycles, db.getCycleCount);
 
   // GET /api/profile — user profile + body measurements
   router.get('/profile', (req, res) => {
