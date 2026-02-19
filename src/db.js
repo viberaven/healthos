@@ -427,6 +427,80 @@ function getDashboardData(days) {
   return { latestRecovery, latestCycle, latestSleep, recoveryRange, cyclesRange, sleepRange, workoutsRange };
 }
 
+// --- Recovery chart data ---
+
+function getRecoveryChartData(days) {
+  const d = getDb();
+  const filter = days ? `-${days} days` : null;
+  return d.prepare(filter
+    ? `SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate,
+              r.spo2_percentage, r.skin_temp_celsius, c.start_time
+       FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
+       WHERE c.start_time >= datetime('now', ?) ORDER BY c.start_time ASC`
+    : `SELECT r.recovery_score, r.hrv_rmssd_milli, r.resting_heart_rate,
+              r.spo2_percentage, r.skin_temp_celsius, c.start_time
+       FROM recovery r LEFT JOIN cycles c ON r.cycle_id = c.id
+       ORDER BY c.start_time ASC`
+  ).all(...(filter ? [filter] : []));
+}
+
+// --- Workouts chart data ---
+
+function getWorkoutsChartData(days) {
+  const d = getDb();
+  const filter = days ? `-${days} days` : null;
+  return d.prepare(filter
+    ? `SELECT score_strain, score_kilojoule, score_average_heart_rate,
+              score_max_heart_rate, start_time
+       FROM workouts WHERE start_time >= datetime('now', ?) ORDER BY start_time ASC`
+    : `SELECT score_strain, score_kilojoule, score_average_heart_rate,
+              score_max_heart_rate, start_time
+       FROM workouts ORDER BY start_time ASC`
+  ).all(...(filter ? [filter] : []));
+}
+
+// --- Cycles chart data ---
+
+function getCyclesChartData(days) {
+  const d = getDb();
+  const filter = days ? `-${days} days` : null;
+  return d.prepare(filter
+    ? `SELECT score_strain, score_kilojoule, score_average_heart_rate,
+              score_max_heart_rate, start_time
+       FROM cycles WHERE start_time >= datetime('now', ?) ORDER BY start_time ASC`
+    : `SELECT score_strain, score_kilojoule, score_average_heart_rate,
+              score_max_heart_rate, start_time
+       FROM cycles ORDER BY start_time ASC`
+  ).all(...(filter ? [filter] : []));
+}
+
+// --- Sleep chart data ---
+
+function getSleepChartData(days) {
+  const d = getDb();
+  const filter = days ? `-${days} days` : null;
+  return d.prepare(filter
+    ? `SELECT score_stage_summary_total_light_sleep_time_milli as light,
+              score_stage_summary_total_slow_wave_sleep_time_milli as deep,
+              score_stage_summary_total_rem_sleep_time_milli as rem,
+              score_stage_summary_total_awake_time_milli as awake,
+              score_sleep_efficiency_percentage as efficiency,
+              score_sleep_performance_percentage as performance,
+              score_respiratory_rate as respiratory_rate,
+              start_time
+       FROM sleep WHERE nap = 0 AND start_time >= datetime('now', ?) ORDER BY start_time ASC`
+    : `SELECT score_stage_summary_total_light_sleep_time_milli as light,
+              score_stage_summary_total_slow_wave_sleep_time_milli as deep,
+              score_stage_summary_total_rem_sleep_time_milli as rem,
+              score_stage_summary_total_awake_time_milli as awake,
+              score_sleep_efficiency_percentage as efficiency,
+              score_sleep_performance_percentage as performance,
+              score_respiratory_rate as respiratory_rate,
+              start_time
+       FROM sleep WHERE nap = 0 ORDER BY start_time ASC`
+  ).all(...(filter ? [filter] : []));
+}
+
 // --- AI context queries ---
 
 function getAIContext() {
@@ -485,5 +559,5 @@ module.exports = {
   upsertWorkout, getWorkouts, getWorkoutCount,
   getSyncStatus, getAllSyncStatus, updateSyncStatus,
   saveChatMessage, getChatHistory,
-  getDashboardData, getAIContext,
+  getDashboardData, getRecoveryChartData, getCyclesChartData, getWorkoutsChartData, getSleepChartData, getAIContext,
 };

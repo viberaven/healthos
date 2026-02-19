@@ -31,6 +31,58 @@ function createRouter(config) {
     }
   });
 
+  // GET /api/workouts/chart — workouts chart data for a time range
+  router.get('/workouts/chart', (req, res) => {
+    try {
+      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+      const raw = req.query.days;
+      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
+      const data = db.getWorkoutsChartData(days);
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/cycles/chart — cycles chart data for a time range
+  router.get('/cycles/chart', (req, res) => {
+    try {
+      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+      const raw = req.query.days;
+      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
+      const data = db.getCyclesChartData(days);
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/recovery/chart — recovery chart data for a time range
+  router.get('/recovery/chart', (req, res) => {
+    try {
+      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+      const raw = req.query.days;
+      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
+      const data = db.getRecoveryChartData(days);
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/sleep/chart — sleep chart data for a time range
+  router.get('/sleep/chart', (req, res) => {
+    try {
+      const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+      const raw = req.query.days;
+      const days = raw === undefined || raw === 'max' ? null : VALID_RANGES[raw] || 30;
+      const data = db.getSleepChartData(days);
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // GET /api/recovery — paginated recovery data
   router.get('/recovery', (req, res) => {
     try {
