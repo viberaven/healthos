@@ -48,7 +48,8 @@ app.get('*', (req, res) => {
 });
 
 // Start server
-const PORT = config.server?.port || 3000;
-app.listen(PORT, () => {
-  console.log(`HealthOS running at http://localhost:${PORT}`);
+const HOST = process.env.HOST || 'localhost';
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, HOST, () => {
+  console.log(`HealthOS running at http://${HOST}:${PORT}`);
 });

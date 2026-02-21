@@ -53,8 +53,6 @@ See `config.js.example` for all options:
 | `gemini.apiKey` | Google Gemini API key for AI chat |
 | `gemini.model` | Gemini model (default: `gemini-3-flash-preview`) |
 | `display.energyUnit` | `kcal` or `kJ` |
-| `server.port` | Server port (default: 3000) |
-| `server.sessionSecret` | Session secret (change this) |
 
 ## WHOOP Data
 
