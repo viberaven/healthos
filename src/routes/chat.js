@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../db');
+const authStore = require('../auth-store');
 const { streamChat } = require('../ai-chat');
 
 function createRouter(config) {
@@ -7,17 +7,22 @@ function createRouter(config) {
 
   // Middleware: require authentication
   router.use((req, res, next) => {
-    const tokens = db.getTokens();
+    const tokens = authStore.getTokens();
     if (!tokens) return res.status(401).json({ error: 'Not authenticated' });
     next();
   });
 
   // POST /api/chat/message — SSE streaming chat
+  // Body: { message, sessionId, context, history }
+  // context: { recovery365d, sleep365d, workouts365d, cycles365d, profile, bodyMeasurements }
+  // history: [{ role, content }, ...]
   router.post('/message', async (req, res) => {
-    const { message, sessionId } = req.body;
+    const { message, sessionId, context, history } = req.body;
     if (!message) return res.status(400).json({ error: 'Message required' });
 
     const sid = sessionId || `session_${Date.now()}`;
+    const ctx = context || { recovery365d: [], sleep365d: [], workouts365d: [], cycles365d: [], profile: null, bodyMeasurements: null };
+    const hist = history || [];
 
     // Set up SSE
     res.writeHead(200, {
@@ -27,7 +32,7 @@ function createRouter(config) {
     });
 
     try {
-      for await (const chunk of streamChat(message, sid, config)) {
+      for await (const chunk of streamChat(message, sid, ctx, hist, config)) {
         res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
       }
       res.write(`data: ${JSON.stringify({ type: 'done', sessionId: sid })}\n\n`);
@@ -37,18 +42,6 @@ function createRouter(config) {
     }
 
     res.end();
-  });
-
-  // GET /api/chat/history — get chat history for a session
-  router.get('/history', (req, res) => {
-    const sessionId = req.query.sessionId;
-    if (!sessionId) return res.json({ messages: [] });
-    try {
-      const messages = db.getChatHistory(sessionId);
-      res.json({ messages });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
   });
 
   return router;

@@ -1,4 +1,4 @@
-// HealthOS SPA — Router, Auth, Sync, Utilities
+// HealthOS SPA — Router, Auth, Sync, Utilities (Browser SQLite version)
 
 (function () {
   const KJ_TO_KCAL = 1 / 4.184;
@@ -9,6 +9,7 @@
     currentPage: null,
     syncing: false,
     energyUnit: 'kcal',
+    dbReady: false,
   };
 
   // --- Utilities ---
@@ -90,11 +91,19 @@
     try {
       const data = await apiJSON('/auth/status');
       state.authenticated = data.authenticated;
-      state.profile = data.profile;
+      if (state.authenticated && state.dbReady) {
+        const profile = window.healthDB.getProfile();
+        state.profile = profile ? { firstName: profile.first_name, lastName: profile.last_name, email: profile.email } : null;
+      }
     } catch {
       state.authenticated = false;
     }
     render();
+
+    // Auto-sync after login if local DB has no data yet
+    if (state.authenticated && state.dbReady && !state.profile) {
+      syncAll();
+    }
   }
 
   async function logout() {
@@ -107,7 +116,7 @@
   // --- Sync ---
 
   async function syncAll() {
-    if (state.syncing) return;
+    if (state.syncing || !state.dbReady) return;
     state.syncing = true;
     const overlay = $('#sync-overlay');
     const progress = $('#sync-progress');
@@ -117,7 +126,7 @@
     $('#sidebar-sync-btn')?.classList.add('sync-spinning');
     $('#mobile-sync-btn')?.classList.add('sync-spinning');
 
-    const types = ['profile', 'body_measurements', 'cycles', 'recovery', 'sleep', 'workouts'];
+    const types = window.healthSync.SYNC_ORDER;
     progress.innerHTML = types.map(t => `
       <div class="sync-item pending" id="sync-${t}">
         <svg class="sync-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,7 +149,7 @@
         statusText.textContent = `Syncing ${type.replace('_', ' ')}...`;
 
         try {
-          const result = await apiJSON(`/api/sync/${type}`, { method: 'POST' });
+          const result = await window.healthSync.syncDataType(type);
           item.className = 'sync-item completed';
           item.querySelector('.sync-icon').innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>';
           item.querySelector('.sync-status').textContent = result.count != null ? `${result.count} records` : 'done';
@@ -149,6 +158,13 @@
           item.querySelector('.sync-icon').innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
           item.querySelector('.sync-status').textContent = 'error';
         }
+      }
+
+      // Update profile from local DB after sync
+      const profile = window.healthDB.getProfile();
+      state.profile = profile ? { firstName: profile.first_name, lastName: profile.last_name, email: profile.email } : null;
+      if (state.profile) {
+        $('#sidebar-user').textContent = `${state.profile.firstName || ''} ${state.profile.lastName || ''}`.trim();
       }
 
       statusText.textContent = 'Sync complete!';
@@ -260,8 +276,23 @@
     renderChat: () => {},
   };
 
-  // Load display config then check auth
-  fetch('/api/config').then(r => r.json()).then(cfg => {
-    state.energyUnit = cfg.energyUnit || 'kcal';
-  }).catch(() => {}).finally(() => checkAuth());
+  // Init: load DB → load config → check auth
+  async function init() {
+    try {
+      await window.healthDB.initDb();
+      state.dbReady = true;
+      console.log('[App] DB ready');
+    } catch (err) {
+      console.error('[App] DB init failed:', err);
+    }
+
+    try {
+      const cfg = await fetch('/api/config').then(r => r.json());
+      state.energyUnit = cfg.energyUnit || 'kcal';
+    } catch { /* ignore */ }
+
+    await checkAuth();
+  }
+
+  init();
 })();

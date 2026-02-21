@@ -1,5 +1,4 @@
 const { GoogleGenAI } = require('@google/genai');
-const db = require('./db');
 
 let client = null;
 
@@ -104,13 +103,9 @@ Example chart output:
 `;
 }
 
-async function* streamChat(message, sessionId, config) {
+async function* streamChat(message, sessionId, context, history, config) {
   const ai = getClient(config);
-  const context = db.getAIContext();
   const systemPrompt = buildSystemPrompt(context, config);
-
-  // Load chat history for context
-  const history = db.getChatHistory(sessionId, 20);
 
   // Build contents array with Gemini role format (user/model)
   const contents = history.map(h => ({
@@ -118,9 +113,6 @@ async function* streamChat(message, sessionId, config) {
     parts: [{ text: h.content }],
   }));
   contents.push({ role: 'user', parts: [{ text: message }] });
-
-  // Save user message
-  db.saveChatMessage(sessionId, 'user', message);
 
   const response = await ai.models.generateContentStream({
     model: config.gemini.model,
@@ -141,8 +133,7 @@ async function* streamChat(message, sessionId, config) {
     }
   }
 
-  // Save assistant response
-  db.saveChatMessage(sessionId, 'assistant', fullResponse);
+  return fullResponse;
 }
 
 module.exports = { streamChat };

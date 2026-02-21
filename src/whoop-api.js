@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const db = require('./db');
+const authStore = require('./auth-store');
 
 const WHOOP_AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
@@ -93,12 +93,12 @@ async function exchangeCode(code, config) {
   }
 
   const data = await res.json();
-  db.saveTokens(data.access_token, data.refresh_token, data.expires_in, data.scope);
+  authStore.saveTokens(data.access_token, data.refresh_token, data.expires_in, data.scope);
   return data;
 }
 
 async function refreshAccessToken(config) {
-  const tokens = db.getTokens();
+  const tokens = authStore.getTokens();
   if (!tokens) throw new Error('No tokens stored — user must re-authenticate');
 
   const body = new URLSearchParams({
@@ -117,7 +117,7 @@ async function refreshAccessToken(config) {
   if (!res.ok) {
     const text = await res.text();
     if (res.status === 401 || res.status === 400) {
-      db.deleteTokens();
+      authStore.deleteTokens();
       throw new Error('Refresh token invalid — user must re-authenticate');
     }
     throw new Error(`Token refresh failed (${res.status}): ${text}`);
@@ -125,12 +125,12 @@ async function refreshAccessToken(config) {
 
   const data = await res.json();
   // WHOOP rotates BOTH tokens on refresh — save both immediately
-  db.saveTokens(data.access_token, data.refresh_token, data.expires_in, data.scope);
+  authStore.saveTokens(data.access_token, data.refresh_token, data.expires_in, data.scope);
   return data;
 }
 
 async function getValidToken(config) {
-  let tokens = db.getTokens();
+  let tokens = authStore.getTokens();
   if (!tokens) throw new Error('Not authenticated');
 
   const now = Math.floor(Date.now() / 1000);
@@ -138,7 +138,7 @@ async function getValidToken(config) {
     // Token expired or expiring within 60s — refresh
     console.log('[WHOOP] Refreshing access token...');
     await refreshAccessToken(config);
-    tokens = db.getTokens();
+    tokens = authStore.getTokens();
   }
   return tokens.access_token;
 }

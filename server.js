@@ -10,14 +10,10 @@ try {
   process.exit(1);
 }
 
-// Initialize database
-const db = require('./src/db');
-db.getDb();
-
 const app = express();
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Simple cookie parser (no dependency needed)
@@ -38,9 +34,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
 app.use('/auth', require('./src/routes/auth')(config));
-app.use('/api', require('./src/routes/api')(config));
-app.use('/api/sync', require('./src/routes/sync')(config));
+app.use('/api/fetch', require('./src/routes/fetch')(config));
 app.use('/api/chat', require('./src/routes/chat')(config));
+
+// Config endpoint (public — no auth required)
+app.get('/api/config', (req, res) => {
+  res.json({ energyUnit: config.display?.energyUnit || 'kcal' });
+});
 
 // SPA fallback
 app.get('*', (req, res) => {

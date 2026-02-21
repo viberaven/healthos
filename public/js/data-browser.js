@@ -1,13 +1,21 @@
 // HealthOS Data Browser — Paginated tables for recovery, sleep, workouts, cycles
-// Recovery tab includes charts above the table using shared chart utilities
+// Queries local SQLite directly — no network calls
 
 (function () {
   const PAGE_SIZE = 20;
 
+  const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+  function parseDays(range) {
+    return range === 'max' ? null : VALID_RANGES[range] || 30;
+  }
+
   const tableConfigs = {
     recovery: {
       title: 'Recovery',
-      endpoint: '/api/recovery',
+      getData: (limit, offset) => ({
+        data: window.healthDB.getRecoveries(limit, offset),
+        total: window.healthDB.getRecoveryCount(),
+      }),
       columns: [
         { key: 'cycle_start', label: 'Date', format: v => window.healthOS.formatDate(v) },
         { key: 'recovery_score', label: 'Recovery', format: (v, row) => `<span class="${window.healthOS.recoveryColor(v)}">${v != null ? Math.round(v) + '%' : '—'}</span>` },
@@ -19,7 +27,10 @@
     },
     sleep: {
       title: 'Sleep',
-      endpoint: '/api/sleep',
+      getData: (limit, offset) => ({
+        data: window.healthDB.getSleeps(limit, offset),
+        total: window.healthDB.getSleepCount(),
+      }),
       columns: [
         { key: 'start_time', label: 'Date', format: v => window.healthOS.formatDate(v) },
         {
@@ -41,7 +52,10 @@
     },
     workouts: {
       title: 'Workouts',
-      endpoint: '/api/workouts',
+      getData: (limit, offset) => ({
+        data: window.healthDB.getWorkouts(limit, offset),
+        total: window.healthDB.getWorkoutCount(),
+      }),
       columns: [
         { key: 'start_time', label: 'Date', format: v => window.healthOS.formatDateTime(v) },
         { key: 'sport_name', label: 'Activity', format: v => v || 'Unknown' },
@@ -60,7 +74,10 @@
     },
     cycles: {
       title: 'Cycles',
-      endpoint: '/api/cycles',
+      getData: (limit, offset) => ({
+        data: window.healthDB.getCycles(limit, offset),
+        total: window.healthDB.getCycleCount(),
+      }),
       columns: [
         { key: 'start_time', label: 'Start', format: v => window.healthOS.formatDateTime(v) },
         { key: 'end_time', label: 'End', format: v => window.healthOS.formatDateTime(v) },
@@ -83,14 +100,14 @@
     { id: 'rc-temp', valueKey: 'skin_temp_celsius', label: 'Skin Temp (\u00b0C)', color: 'rgb(234,179,8)' },
   ];
 
-  async function loadRecoveryCharts(chartsContainer) {
+  function loadRecoveryCharts(chartsContainer) {
     const C = window.healthOS.charts;
     C.destroyCharts(OWNER);
 
     let chartData;
     try {
-      const param = C.getRange() === 'max' ? 'max' : C.getRange();
-      chartData = await window.healthOS.apiJSON(`/api/recovery/chart?days=${param}`);
+      const days = parseDays(C.getRange());
+      chartData = window.healthDB.getRecoveryChartData(days);
     } catch {
       return;
     }
@@ -141,14 +158,14 @@
     { id: 'sc-resp', valueKey: 'respiratory_rate', label: 'Resp Rate (br/min)', color: 'rgb(249,115,22)' },
   ];
 
-  async function loadSleepCharts(chartsContainer) {
+  function loadSleepCharts(chartsContainer) {
     const C = window.healthOS.charts;
     C.destroyCharts(SLEEP_OWNER);
 
     let chartData;
     try {
-      const param = C.getRange() === 'max' ? 'max' : C.getRange();
-      chartData = await window.healthOS.apiJSON(`/api/sleep/chart?days=${param}`);
+      const days = parseDays(C.getRange());
+      chartData = window.healthDB.getSleepChartData(days);
     } catch {
       return;
     }
@@ -210,15 +227,15 @@
     { valueKey: 'score_max_heart_rate', label: 'Max HR (bpm)', color: 'rgb(239,68,68)' },
   ];
 
-  function makeStrainHRLoader(owner, apiPath, selectorId) {
-    async function loader(chartsContainer) {
+  function makeStrainHRLoader(owner, dbChartFn, selectorId) {
+    function loader(chartsContainer) {
       const C = window.healthOS.charts;
       C.destroyCharts(owner);
 
       let chartData;
       try {
-        const param = C.getRange() === 'max' ? 'max' : C.getRange();
-        chartData = await window.healthOS.apiJSON(`${apiPath}?days=${param}`);
+        const days = parseDays(C.getRange());
+        chartData = dbChartFn(days);
       } catch {
         return;
       }
@@ -262,8 +279,8 @@
     return loader;
   }
 
-  const loadCyclesCharts = makeStrainHRLoader(CYCLES_OWNER, '/api/cycles/chart', 'cycles-range-selector');
-  const loadWorkoutsCharts = makeStrainHRLoader(WORKOUTS_OWNER, '/api/workouts/chart', 'workouts-range-selector');
+  const loadCyclesCharts = makeStrainHRLoader(CYCLES_OWNER, (days) => window.healthDB.getCyclesChartData(days), 'cycles-range-selector');
+  const loadWorkoutsCharts = makeStrainHRLoader(WORKOUTS_OWNER, (days) => window.healthDB.getWorkoutsChartData(days), 'workouts-range-selector');
 
   // --- Chart loading dispatcher ---
 
@@ -284,7 +301,7 @@
 
   // --- Table rendering ---
 
-  async function renderDataBrowser(container, type) {
+  function renderDataBrowser(container, type) {
     const C = window.healthOS.charts;
     const config = tableConfigs[type];
     if (!config) {
@@ -298,11 +315,11 @@
 
     let currentOffset = 0;
 
-    async function loadPage(offset) {
+    function loadPage(offset) {
       currentOffset = offset;
 
       try {
-        const data = await window.healthOS.apiJSON(`${config.endpoint}?limit=${PAGE_SIZE}&offset=${offset}`);
+        const data = config.getData(PAGE_SIZE, offset);
         renderTable(data);
       } catch (err) {
         container.innerHTML = `<div class="empty-state"><p>Failed to load data</p><p>${err.message}</p></div>`;
@@ -371,7 +388,7 @@
       });
     }
 
-    await loadPage(0);
+    loadPage(0);
   }
 
   window.healthOS.renderDataBrowser = renderDataBrowser;

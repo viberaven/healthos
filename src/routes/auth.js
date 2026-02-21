@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../db');
+const authStore = require('../auth-store');
 const whoop = require('../whoop-api');
 
 function createRouter(config) {
@@ -39,17 +39,15 @@ function createRouter(config) {
 
   // GET /auth/status — check if authenticated
   router.get('/status', (req, res) => {
-    const tokens = db.getTokens();
-    const profile = db.getProfile();
+    const tokens = authStore.getTokens();
     res.json({
       authenticated: !!tokens,
-      profile: profile ? { firstName: profile.first_name, lastName: profile.last_name, email: profile.email } : null,
     });
   });
 
   // POST /auth/logout — clear tokens
   router.post('/logout', (req, res) => {
-    db.deleteTokens();
+    authStore.deleteTokens();
     res.json({ success: true });
   });
 

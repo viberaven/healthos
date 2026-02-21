@@ -1,21 +1,27 @@
 // HealthOS Dashboard — Overview cards + Chart.js charts with time range selector
+// Queries local SQLite directly — no network calls
 
 (function () {
   const C = window.healthOS.charts;
   const OWNER = 'dashboard';
 
-  async function renderDashboard(container) {
-    C.destroyCharts(OWNER);
-    await loadDashboard(container);
+  const VALID_RANGES = { '30': 30, '90': 90, '180': 180, '365': 365, '730': 730, '1095': 1095, '1825': 1825 };
+  function parseDays(range) {
+    return range === 'max' ? null : VALID_RANGES[range] || 30;
   }
 
-  async function loadDashboard(container) {
+  function renderDashboard(container) {
+    C.destroyCharts(OWNER);
+    loadDashboard(container);
+  }
+
+  function loadDashboard(container) {
     C.destroyCharts(OWNER);
 
     let data;
     try {
-      const param = C.getRange() === 'max' ? 'max' : C.getRange();
-      data = await window.healthOS.apiJSON(`/api/dashboard?days=${param}`);
+      const days = parseDays(C.getRange());
+      data = window.healthDB.getDashboardData(days);
     } catch (err) {
       container.innerHTML = '<div class="empty-state"><p>Failed to load dashboard data</p><p>Try syncing your data first</p></div>';
       return;
@@ -90,7 +96,6 @@
       loadDashboard(container);
     });
 
-    const thinRecovery = C.thinData(recoveryRange, 60);
     const thinCycles = C.thinData(cyclesRange, 60);
     const thinSleep = C.thinData(sleepRange, 60);
 
