@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const authStore = require('../auth-store');
 const whoop = require('../whoop-api');
@@ -28,7 +29,17 @@ function createRouter(config) {
         return res.status(400).send('State mismatch — possible CSRF attack');
       }
 
-      await whoop.exchangeCode(code, config);
+      // Generate a unique session ID for this user
+      const sessionId = crypto.randomBytes(32).toString('hex');
+
+      await whoop.exchangeCode(sessionId, code, config);
+
+      // Set session cookie (httpOnly, long-lived)
+      res.cookie('healthos_sid', sessionId, {
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+      });
       res.clearCookie('oauth_state');
       res.redirect('/#dashboard');
     } catch (err) {
@@ -39,7 +50,8 @@ function createRouter(config) {
 
   // GET /auth/status — check if authenticated
   router.get('/status', (req, res) => {
-    const tokens = authStore.getTokens();
+    const sessionId = req.cookies?.healthos_sid;
+    const tokens = sessionId ? authStore.getTokens(sessionId) : null;
     res.json({
       authenticated: !!tokens,
     });
@@ -47,7 +59,11 @@ function createRouter(config) {
 
   // POST /auth/logout — clear tokens
   router.post('/logout', (req, res) => {
-    authStore.deleteTokens();
+    const sessionId = req.cookies?.healthos_sid;
+    if (sessionId) {
+      authStore.deleteTokens(sessionId);
+    }
+    res.clearCookie('healthos_sid');
     res.json({ success: true });
   });
 

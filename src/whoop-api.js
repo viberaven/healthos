@@ -72,7 +72,7 @@ function getAuthUrl(config) {
   return { url: `${WHOOP_AUTH_URL}?${params}`, state };
 }
 
-async function exchangeCode(code, config) {
+async function exchangeCode(sessionId, code, config) {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -93,12 +93,12 @@ async function exchangeCode(code, config) {
   }
 
   const data = await res.json();
-  authStore.saveTokens(data.access_token, data.refresh_token, data.expires_in, data.scope);
+  authStore.saveTokens(sessionId, data.access_token, data.refresh_token, data.expires_in, data.scope);
   return data;
 }
 
-async function refreshAccessToken(config) {
-  const tokens = authStore.getTokens();
+async function refreshAccessToken(sessionId, config) {
+  const tokens = authStore.getTokens(sessionId);
   if (!tokens) throw new Error('No tokens stored — user must re-authenticate');
 
   const body = new URLSearchParams({
@@ -117,7 +117,7 @@ async function refreshAccessToken(config) {
   if (!res.ok) {
     const text = await res.text();
     if (res.status === 401 || res.status === 400) {
-      authStore.deleteTokens();
+      authStore.deleteTokens(sessionId);
       throw new Error('Refresh token invalid — user must re-authenticate');
     }
     throw new Error(`Token refresh failed (${res.status}): ${text}`);
@@ -125,30 +125,30 @@ async function refreshAccessToken(config) {
 
   const data = await res.json();
   // WHOOP rotates BOTH tokens on refresh — save both immediately
-  authStore.saveTokens(data.access_token, data.refresh_token, data.expires_in, data.scope);
+  authStore.saveTokens(sessionId, data.access_token, data.refresh_token, data.expires_in, data.scope);
   return data;
 }
 
-async function getValidToken(config) {
-  let tokens = authStore.getTokens();
+async function getValidToken(sessionId, config) {
+  let tokens = authStore.getTokens(sessionId);
   if (!tokens) throw new Error('Not authenticated');
 
   const now = Math.floor(Date.now() / 1000);
   if (tokens.expires_at <= now + 60) {
     // Token expired or expiring within 60s — refresh
     console.log('[WHOOP] Refreshing access token...');
-    await refreshAccessToken(config);
-    tokens = authStore.getTokens();
+    await refreshAccessToken(sessionId, config);
+    tokens = authStore.getTokens(sessionId);
   }
   return tokens.access_token;
 }
 
 // --- API fetcher with retry ---
 
-async function apiFetch(path, config, params = {}) {
+async function apiFetch(sessionId, path, config, params = {}) {
   await rateLimiter.acquire();
 
-  const token = await getValidToken(config);
+  const token = await getValidToken(sessionId, config);
   const url = new URL(`${WHOOP_API_BASE}${path}`);
   Object.entries(params).forEach(([k, v]) => {
     if (v != null) url.searchParams.set(k, v);
@@ -162,14 +162,14 @@ async function apiFetch(path, config, params = {}) {
     const retryAfter = parseInt(res.headers.get('retry-after') || '60', 10);
     console.log(`[WHOOP] Rate limited (429), retrying in ${retryAfter}s`);
     await sleep(retryAfter * 1000);
-    return apiFetch(path, config, params);
+    return apiFetch(sessionId, path, config, params);
   }
 
   if (res.status === 401) {
     // Token may have expired mid-request — try refresh once
     console.log('[WHOOP] 401 received, attempting token refresh...');
-    await refreshAccessToken(config);
-    return apiFetch(path, config, params);
+    await refreshAccessToken(sessionId, config);
+    return apiFetch(sessionId, path, config, params);
   }
 
   if (!res.ok) {
@@ -182,7 +182,7 @@ async function apiFetch(path, config, params = {}) {
 
 // --- Paginated fetcher ---
 
-async function fetchPaginated(path, config, params = {}) {
+async function fetchPaginated(sessionId, path, config, params = {}) {
   const allRecords = [];
   let nextToken = null;
 
@@ -190,7 +190,7 @@ async function fetchPaginated(path, config, params = {}) {
     const queryParams = { ...params, limit: 25 };
     if (nextToken) queryParams.nextToken = nextToken;
 
-    const data = await apiFetch(path, config, queryParams);
+    const data = await apiFetch(sessionId, path, config, queryParams);
     const records = data.records || [];
     allRecords.push(...records);
     nextToken = data.next_token || null;
@@ -205,40 +205,40 @@ async function fetchPaginated(path, config, params = {}) {
 
 // --- Endpoint-specific fetchers ---
 
-async function fetchProfile(config) {
-  return apiFetch('/v1/user/profile/basic', config);
+async function fetchProfile(sessionId, config) {
+  return apiFetch(sessionId, '/v1/user/profile/basic', config);
 }
 
-async function fetchBodyMeasurements(config) {
-  return apiFetch('/v1/user/measurement/body', config);
+async function fetchBodyMeasurements(sessionId, config) {
+  return apiFetch(sessionId, '/v1/user/measurement/body', config);
 }
 
-async function fetchCycles(config, startDate, endDate) {
+async function fetchCycles(sessionId, config, startDate, endDate) {
   const params = {};
   if (startDate) params.start = startDate;
   if (endDate) params.end = endDate;
-  return fetchPaginated('/v2/cycle', config, params);
+  return fetchPaginated(sessionId, '/v2/cycle', config, params);
 }
 
-async function fetchRecovery(config, startDate, endDate) {
+async function fetchRecovery(sessionId, config, startDate, endDate) {
   const params = {};
   if (startDate) params.start = startDate;
   if (endDate) params.end = endDate;
-  return fetchPaginated('/v2/recovery', config, params);
+  return fetchPaginated(sessionId, '/v2/recovery', config, params);
 }
 
-async function fetchSleep(config, startDate, endDate) {
+async function fetchSleep(sessionId, config, startDate, endDate) {
   const params = {};
   if (startDate) params.start = startDate;
   if (endDate) params.end = endDate;
-  return fetchPaginated('/v2/activity/sleep', config, params);
+  return fetchPaginated(sessionId, '/v2/activity/sleep', config, params);
 }
 
-async function fetchWorkouts(config, startDate, endDate) {
+async function fetchWorkouts(sessionId, config, startDate, endDate) {
   const params = {};
   if (startDate) params.start = startDate;
   if (endDate) params.end = endDate;
-  return fetchPaginated('/v2/activity/workout', config, params);
+  return fetchPaginated(sessionId, '/v2/activity/workout', config, params);
 }
 
 module.exports = {

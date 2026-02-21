@@ -5,10 +5,13 @@ const { streamChat } = require('../ai-chat');
 function createRouter(config) {
   const router = express.Router();
 
-  // Middleware: require authentication
+  // Middleware: require authentication via session cookie
   router.use((req, res, next) => {
-    const tokens = authStore.getTokens();
+    const sessionId = req.cookies?.healthos_sid;
+    if (!sessionId) return res.status(401).json({ error: 'Not authenticated' });
+    const tokens = authStore.getTokens(sessionId);
     if (!tokens) return res.status(401).json({ error: 'Not authenticated' });
+    req.sessionId = sessionId;
     next();
   });
 
