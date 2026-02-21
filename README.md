@@ -2,12 +2,13 @@
 
 Health data dashboard powered by WHOOP API with an AI chat assistant.
 
-Connects to your WHOOP account via OAuth2, imports all health data into a local SQLite database, and presents it through a modern dark-themed dashboard with charts. Includes an AI assistant (Google Gemini) that can analyze your data and render inline visualizations.
+Connects to your WHOOP account via OAuth2 and presents your health data through a modern dark-themed dashboard with charts. Health data is stored locally in each user's browser (SQLite WASM with OPFS), while the server handles OAuth sessions in a lightweight SQLite database. Includes an AI assistant (Google Gemini) that can analyze your data and render inline visualizations.
 
 ## Features
 
-- **OAuth2 integration** with WHOOP API — imports cycles, recovery, sleep, workouts, profile, and body measurements
-- **Incremental sync** with 2-hour overlap buffer to ensure no gaps from pending scores
+- **Multi-user support** — each browser gets its own OAuth session; multiple WHOOP accounts can be logged in simultaneously
+- **OAuth2 integration** with WHOOP API — fetches cycles, recovery, sleep, workouts, profile, and body measurements
+- **Browser-side storage** — all health data lives in SQLite WASM (OPFS-backed), keeping it private to each user's browser
 - **Interactive dashboard** with recovery trend, HRV trend, daily strain, and sleep breakdown charts
 - **Data browser** with paginated tables for all data types
 - **AI chat assistant** powered by Google Gemini — ask questions about your health data and get answers with inline charts
@@ -37,6 +38,12 @@ You'll need:
 npm start
 ```
 
+Optionally set `HOST` and `PORT` environment variables (default: `localhost:3000`):
+
+```
+HOST=0.0.0.0 PORT=8080 npm start
+```
+
 4. Open http://localhost:3000, click **Connect WHOOP**, and authorize the app.
 
 5. Click **Sync Data** to import your WHOOP data.
@@ -54,9 +61,16 @@ See `config.js.example` for all options:
 | `gemini.model` | Gemini model (default: `gemini-3-flash-preview`) |
 | `display.energyUnit` | `kcal` or `kJ` |
 
+Server host and port are controlled via `HOST` and `PORT` environment variables.
+
+## Architecture
+
+- **Health data** is stored entirely in the browser using SQLite WASM with OPFS (Origin Private File System). Each user's data stays in their browser and is never persisted on the server.
+- **OAuth sessions** are stored server-side in a SQLite database (`data/sessions.db` via better-sqlite3). Each browser gets a unique session cookie (`healthos_sid`) mapping it to its own WHOOP OAuth tokens.
+
 ## WHOOP Data
 
-The app imports all available WHOOP data:
+The app fetches all available WHOOP data:
 
 - **Cycles** — daily strain, kilojoules, average/max heart rate
 - **Recovery** — recovery score, HRV (RMSSD), resting heart rate, SpO2, skin temperature
@@ -72,32 +86,32 @@ healthos/
 ├── server.js                  # Express server
 ├── config.js.example          # Config template
 ├── src/
-│   ├── db.js                  # SQLite schema and queries
+│   ├── auth-store.js          # SQLite session store (server-side)
 │   ├── whoop-api.js           # WHOOP OAuth and API client
-│   ├── sync.js                # Incremental sync engine
 │   ├── ai-chat.js             # Gemini chat integration
 │   └── routes/
-│       ├── auth.js            # OAuth routes
-│       ├── api.js             # Data API routes
-│       ├── sync.js            # Sync trigger routes
+│       ├── auth.js            # OAuth routes (session cookies)
+│       ├── fetch.js           # WHOOP data proxy routes
 │       └── chat.js            # Chat streaming (SSE)
 ├── public/
 │   ├── index.html             # SPA shell
 │   ├── css/app.css            # Styles
 │   └── js/
 │       ├── app.js             # Router and navigation
+│       ├── db.js              # Browser-side SQLite (WASM + OPFS)
+│       ├── sync.js            # Data sync from WHOOP API
 │       ├── dashboard.js       # Dashboard charts
+│       ├── charts.js          # Chart rendering utilities
 │       ├── data-browser.js    # Data tables
 │       └── chat.js            # Chat UI
-└── data/                      # SQLite database (auto-created)
+└── data/                      # Server-side SQLite (sessions.db, auto-created)
 ```
 
 ## Tech Stack
 
-- **Backend**: Node.js, Express, better-sqlite3
-- **Frontend**: Vanilla JS SPA, Tailwind CSS (CDN), Chart.js
+- **Backend**: Node.js, Express, better-sqlite3 (sessions only)
+- **Frontend**: Vanilla JS SPA, SQLite WASM (OPFS), Tailwind CSS (CDN), Chart.js
 - **AI**: Google Gemini API with streaming responses
-- **Database**: SQLite with WAL mode
 
 ## License
 
